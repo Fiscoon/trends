@@ -1,0 +1,1 @@
+go build && ./trends > trends.txt
