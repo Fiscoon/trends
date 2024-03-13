@@ -31,6 +31,7 @@ func main() {
 
 	for _, cluster := range clusters {
 		fmt.Println(cluster.DefineTrendsMessage())
+		fmt.Println()
 	}
 }
 
