@@ -1,1 +1,1 @@
-go build && ./trends > trends.txt
+go build -o trendsbin && ./trendsbin > trends.txt
