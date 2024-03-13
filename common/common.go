@@ -24,7 +24,7 @@ func Average(numbers []float64) float64 {
 func CountOverThreshold(numbers []float64, threshold float64) int {
 	count := 0
 	for _, num := range numbers {
-		if num > threshold {
+		if num >= threshold {
 			count++
 		}
 	}
