@@ -23,26 +23,13 @@ const (
 )
 
 var AllowedClusters = []string{
-	"nl",
-	"nl-mt",
-	"nl-dta",
-	"nl-utre",
-	"ld",
-	"ld7",
-	"ld7-dta",
-	"sg",
-	"sg3",
-	"jb",
-	"mi",
-	"hk",
-	"vsan-01",
+	"nl", "nl-mt", "nl-dta", "nl-utre", "ld", "ld7",
+	"ld7-dta", "sg", "sg3", "jb", "mi", "hk", "vsan-01",
 }
 
 type Host struct {
 	name          string
 	cpuUsageSteps *[]float64
-	//cpuAverage    uint
-	//cpuThresholds map[int]bool // key: CPU usage threshold, value: whether it was reached
 }
 
 type Cluster struct {
@@ -146,38 +133,35 @@ func (c *Cluster) CalculateTrendsScore() {
 		if countOver70 == 0 {
 			continue // This host is completely fine
 		}
-		if cpuAvg > 70 {
-			c.score += 40
-		}
 
 		if countOver99_5 != 0 {
-			switch {
-			case countOver99_5 == 1:
-				c.score += 32
-			case countOver99_5 > 1:
-				c.score += 45
+			if countOver99_5 == 1 {
+				c.score += 38
+			} else {
+				c.score += 55
 			}
 			c.hostnamesOver99_5Perc = append(c.hostnamesOver99_5Perc, host.name)
 			continue
 		}
 		if countOver90 != 0 {
-			switch {
-			case countOver90 == 1:
-				c.score += 18
-			case countOver90 > 1:
-				c.score += 25
+			if countOver90 == 1 {
+				c.score += 20
+			} else {
+				c.score += 27
 			}
 			c.hostnamesOver90Perc = append(c.hostnamesOver90Perc, host.name)
 			continue
 		}
 		if countOver70 != 0 {
-			switch {
-			case countOver70 == 1:
-				c.score += 6
-			case countOver70 > 1:
-				c.score += 10
+			if countOver70 == 1 {
+				c.score += 8
+			} else {
+				c.score += 12
 			}
 			c.hostnamesOver70Perc = append(c.hostnamesOver70Perc, host.name)
+		}
+		if cpuAvg > 70 {
+			c.score += 40
 		}
 	}
 
@@ -203,5 +187,5 @@ func (c *Cluster) DefineTrendsMessage() string {
 		message += fmt.Sprintf(TrendsText99_5PercSurpass, strings.Join(c.hostnamesOver99_5Perc, ", "))
 	}
 
-	return message + "\n"
+	return message
 }
