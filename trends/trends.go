@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	common "github.com/Fiscoon/trends/common"
-	prometheus "github.com/Fiscoon/trends/prometheus"
+	common "github.com/devopsext/trends-back/common"
+	prometheus "github.com/devopsext/trends-back/prometheus"
 	prometheusApi "github.com/prometheus/client_golang/api/prometheus/v1"
 )
 

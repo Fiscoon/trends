@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Fiscoon/trends/trends"
+	"github.com/devopsext/trends-back/trends"
 )
 
 func main() {

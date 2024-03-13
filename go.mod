@@ -1,4 +1,4 @@
-module github.com/Fiscoon/trends
+module github.com/devopsext/trends-back
 
 go 1.21.6
 
