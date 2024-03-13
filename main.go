@@ -34,8 +34,3 @@ func main() {
 		fmt.Println()
 	}
 }
-
-// Scoring system
-// Green: less than 10 points
-// Yellow: less than 40 points
-// Red: 40 points and more
