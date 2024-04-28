@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	common "github.com/devopsext/trends-back/common"
@@ -24,7 +25,7 @@ const (
 
 var AllowedClusters = []string{
 	"nl", "nl-mt", "nl-dta", "nl-utre", "ld", "ld7",
-	"ld7-dta", "sg", "sg3", "jb", "mi", "hk", "vsan-01",
+	"ld7-dta", "sg3", "sg3-dta", "jb", "mi", "hk", "vsan-01",
 }
 
 type Host struct {
@@ -188,4 +189,35 @@ func (c *Cluster) DefineTrendsMessage() string {
 	}
 
 	return message
+}
+
+func GetTrends() ([]string, error) {
+	var wg sync.WaitGroup
+	message := make([]string, len(AllowedClusters))
+	var err error
+
+	clusters, err := CreateClusterObjects(AllowedClusters)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cluster := range clusters {
+		wg.Add(1)
+		go func(cluster *Cluster) {
+			defer wg.Done()
+			err = cluster.GetHosts()
+			cluster.GetCpuUsageSteps()
+			cluster.CalculateTrendsScore()
+		}(cluster)
+	}
+	wg.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cluster := range clusters {
+		message = append(message, cluster.DefineTrendsMessage()+"\n")
+	}
+
+	return message, nil
 }
