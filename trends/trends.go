@@ -21,6 +21,16 @@ const (
 	TrendsText70PercSurpass   = "There were spikes surpassing the 70%% threshold from (%s). "
 	TrendsText90PercSurpass   = "There were spikes surpassing the 90%% threshold from (%s). "
 	TrendsText99_5PercSurpass = "There were spikes reaching 100%% CPU usage from (%s). "
+	TrendsTextClusterAverage  = "The average CPU consumption in this cluster was *%s%%*."
+
+	greenStateEmoji  = ":large_green_circle:"
+	yellowStateEmoji = ":large_yellow_circle:"
+	redStateEmoji    = ":red_circle:"
+)
+const (
+	greenState = iota
+	yellowState
+	redState
 )
 
 var AllowedClusters = []string{
@@ -40,6 +50,7 @@ type Cluster struct {
 	hostnamesOver70Perc   []string
 	hostnamesOver90Perc   []string
 	hostnamesOver99_5Perc []string
+	averageCpuUsage       float64
 	score                 uint
 }
 
@@ -169,6 +180,15 @@ func (c *Cluster) CalculateTrendsScore() {
 	c.score = c.score / uint(len(c.hosts)) //average!!
 }
 
+func (c *Cluster) CalculateCpuAverage() {
+	var avg float64
+	for _, host := range c.hosts {
+		avg += common.Average(*host.cpuUsageSteps)
+	}
+	avg /= float64(len(c.hosts))
+	c.averageCpuUsage = avg
+}
+
 func (c *Cluster) DefineTrendsMessage() string {
 	var message string
 	if c.score < 20 {
@@ -187,6 +207,7 @@ func (c *Cluster) DefineTrendsMessage() string {
 	if (c.hostnamesOver99_5Perc) != nil {
 		message += fmt.Sprintf(TrendsText99_5PercSurpass, strings.Join(c.hostnamesOver99_5Perc, ", "))
 	}
+	message += fmt.Sprintf(TrendsTextClusterAverage, fmt.Sprintf("%.2f", c.averageCpuUsage))
 
 	return message
 }
@@ -208,6 +229,7 @@ func GetTrends() ([]string, error) {
 			err = cluster.GetHosts()
 			cluster.GetCpuUsageSteps()
 			cluster.CalculateTrendsScore()
+			cluster.CalculateCpuAverage()
 		}(cluster)
 	}
 	wg.Wait()
@@ -217,6 +239,54 @@ func GetTrends() ([]string, error) {
 
 	for _, cluster := range clusters {
 		message = append(message, cluster.DefineTrendsMessage()+"\n")
+	}
+
+	return message, nil
+}
+
+func GetTrendsSummary() (string, error) {
+	var wg sync.WaitGroup
+	var message string
+	clustersStates := make([][]string, 3)
+	var err error
+
+	clusters, err := CreateClusterObjects(AllowedClusters)
+	if err != nil {
+		return "", err
+	}
+
+	for _, cluster := range clusters {
+		wg.Add(1)
+		go func(cluster *Cluster) {
+			defer wg.Done()
+			err = cluster.GetHosts()
+			cluster.GetCpuUsageSteps()
+			cluster.CalculateTrendsScore()
+		}(cluster)
+	}
+	wg.Wait()
+	if err != nil {
+		return "", err
+	}
+
+	for _, cluster := range clusters {
+		if cluster.score < 20 {
+			clustersStates[greenState] = append(clustersStates[greenState], cluster.name)
+		} else if cluster.score < 40 {
+			clustersStates[yellowState] = append(clustersStates[yellowState], cluster.name)
+		} else {
+			clustersStates[redState] = append(clustersStates[redState], cluster.name)
+		}
+	}
+
+	if len(clustersStates[redState]) > 0 {
+		message += redStateEmoji + " *" + strings.ToUpper(strings.Join(clustersStates[redState], ", ")) + "*\n"
+	}
+	if len(clustersStates[yellowState]) > 0 {
+		message += yellowStateEmoji + " *" + strings.ToUpper(strings.Join(clustersStates[yellowState], ", ")) + "*\n"
+	}
+	if len(clustersStates[greenState]) > 0 {
+		message += greenStateEmoji + " *" + strings.ToUpper(strings.Join(clustersStates[greenState], ", ")) + "*\n"
 	}
 
 	return message, nil
