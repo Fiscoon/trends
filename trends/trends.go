@@ -1,6 +1,7 @@
 package trends
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -15,9 +16,9 @@ import (
 const (
 	queryRangeDays = 7
 
-	TrendsTextGreen           = ":large_green_circle: *%s*: This cluster is considered to be in good status regarding CPU consumption. "
-	TrendsTextYellow          = ":large_yellow_circle: *%s*: This cluster is considered to be in average status regarding CPU consumption. "
-	TrendsTextRed             = ":red_circle: *%s*: This cluster is considered to be in bad/critical status regarding CPU consumption. "
+	TrendsTextGreen           = "This cluster is considered to be in good status regarding CPU consumption. "
+	TrendsTextYellow          = "This cluster is considered to be in average status regarding CPU consumption. "
+	TrendsTextRed             = "This cluster is considered to be in bad/critical status regarding CPU consumption. "
 	TrendsText70PercSurpass   = "There were spikes surpassing the 70%% threshold from (%s). "
 	TrendsText90PercSurpass   = "There were spikes surpassing the 90%% threshold from (%s). "
 	TrendsText99_5PercSurpass = "There were spikes reaching 100%% CPU usage from (%s). "
@@ -52,6 +53,19 @@ type Cluster struct {
 	hostnamesOver99_5Perc []string
 	averageCpuUsage       float64
 	score                 uint
+	statusEmoji           string
+}
+
+type Trends struct {
+	Clusters []struct {
+		StatusEmoji    string `json:"status_emoji"`
+		ClusterName    string `json:"cluster_name"`
+		ClusterMessage string `json:"cluster_message"`
+	} `json:"clusters"`
+}
+
+type Summary struct {
+	Clusters []string `json:"cluster_states"`
 }
 
 func NewCluster(name string) (*Cluster, error) {
@@ -177,7 +191,15 @@ func (c *Cluster) CalculateTrendsScore() {
 		}
 	}
 
-	c.score = c.score / uint(len(c.hosts)) //average!!
+	c.score = c.score / uint(len(c.hosts))
+
+	if c.score < 20 {
+		c.statusEmoji = greenStateEmoji
+	} else if c.score < 40 {
+		c.statusEmoji = yellowStateEmoji
+	} else {
+		c.statusEmoji = redStateEmoji
+	}
 }
 
 func (c *Cluster) CalculateCpuAverage() {
@@ -192,11 +214,11 @@ func (c *Cluster) CalculateCpuAverage() {
 func (c *Cluster) DefineTrendsMessage() string {
 	var message string
 	if c.score < 20 {
-		message = fmt.Sprintf(TrendsTextGreen, strings.ToUpper(c.name))
+		message = TrendsTextGreen
 	} else if c.score < 40 {
-		message = fmt.Sprintf(TrendsTextYellow, strings.ToUpper(c.name))
+		message = TrendsTextYellow
 	} else {
-		message = fmt.Sprintf(TrendsTextRed, strings.ToUpper(c.name))
+		message = TrendsTextRed
 	}
 	//if (c.hostnamesOver70Perc) != nil {
 	//	message += fmt.Sprintf(trendsText70PercSurpass, strings.Join(c.hostnamesOver70Perc, ", "))
@@ -212,9 +234,9 @@ func (c *Cluster) DefineTrendsMessage() string {
 	return message
 }
 
-func GetTrends() ([]string, error) {
+func GetTrends() ([]byte, error) {
 	var wg sync.WaitGroup
-	message := make([]string, len(AllowedClusters))
+	trends := Trends{}
 	var err error
 
 	clusters, err := CreateClusterObjects(AllowedClusters)
@@ -238,21 +260,35 @@ func GetTrends() ([]string, error) {
 	}
 
 	for _, cluster := range clusters {
-		message = append(message, cluster.DefineTrendsMessage()+"\n")
+		trends.Clusters = append(trends.Clusters, struct {
+			StatusEmoji    string `json:"status_emoji"`
+			ClusterName    string `json:"cluster_name"`
+			ClusterMessage string `json:"cluster_message"`
+		}{
+			StatusEmoji:    cluster.statusEmoji,
+			ClusterName:    strings.ToUpper(cluster.name),
+			ClusterMessage: cluster.DefineTrendsMessage(),
+		})
 	}
 
-	return message, nil
+	jsonData, err := json.Marshal(trends)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return nil, err
+	}
+
+	return jsonData, nil
 }
 
-func GetTrendsSummary() (string, error) {
+func GetTrendsSummary() ([]byte, error) {
 	var wg sync.WaitGroup
-	var message string
 	clustersStates := make([][]string, 3)
+	message := Summary{}
 	var err error
 
 	clusters, err := CreateClusterObjects(AllowedClusters)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	for _, cluster := range clusters {
@@ -266,7 +302,7 @@ func GetTrendsSummary() (string, error) {
 	}
 	wg.Wait()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	for _, cluster := range clusters {
@@ -280,14 +316,23 @@ func GetTrendsSummary() (string, error) {
 	}
 
 	if len(clustersStates[redState]) > 0 {
-		message += redStateEmoji + " *" + strings.ToUpper(strings.Join(clustersStates[redState], ", ")) + "*\n"
+		message.Clusters =
+			append(message.Clusters, redStateEmoji+" *"+strings.ToUpper(strings.Join(clustersStates[redState], ", "))+"*")
 	}
 	if len(clustersStates[yellowState]) > 0 {
-		message += yellowStateEmoji + " *" + strings.ToUpper(strings.Join(clustersStates[yellowState], ", ")) + "*\n"
+		message.Clusters =
+			append(message.Clusters, yellowStateEmoji+" *"+strings.ToUpper(strings.Join(clustersStates[yellowState], ", "))+"*")
 	}
 	if len(clustersStates[greenState]) > 0 {
-		message += greenStateEmoji + " *" + strings.ToUpper(strings.Join(clustersStates[greenState], ", ")) + "*\n"
+		message.Clusters =
+			append(message.Clusters, greenStateEmoji+" *"+strings.ToUpper(strings.Join(clustersStates[greenState], ", "))+"*")
 	}
 
-	return message, nil
+	jsonData, err := json.Marshal(message)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return nil, err
+	}
+
+	return jsonData, nil
 }
