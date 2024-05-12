@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 
@@ -8,6 +9,7 @@ import (
 )
 
 func Serve() {
+	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	http.HandleFunc("/summary", func(w http.ResponseWriter, r *http.Request) {
 		trendsSummary, _ := trends.GetTrendsSummary()
 		fmt.Fprintf(w, "%v", string(trendsSummary))
