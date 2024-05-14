@@ -25,4 +25,5 @@ For example, if we believe that having a host constantly over 70% CPU is somethi
 
 ## Usage
 
-go build -o trendsbin && ./trendsbin > trends.txt
+go build -o trendsbin && ./trendsbin
+Then, query localhost:8080/summary or localhost:8080/trends
